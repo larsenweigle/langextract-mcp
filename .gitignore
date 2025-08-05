@@ -154,6 +154,7 @@ api_keys.txt
 logs/
 EOF < /dev/null
 
+# Claude
 .mcp.json
 .CLAUDE.md
-.claude
+.claude/
