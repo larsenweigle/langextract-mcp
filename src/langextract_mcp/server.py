@@ -30,9 +30,9 @@ class ExtractionConfig(BaseModel):
 
 # Initialize FastMCP server with Claude Code compatibility
 mcp = FastMCP(
-    name="LangExtract",
-    instructions="Extract structured information from unstructured text using Large Language Models. "
-                "Provides precise source grounding, interactive visualizations, and support for multiple LLM providers.",
+    name="langextract-mcp",
+    instructions="Extract structured information from unstructured text using Google Gemini models. "
+                "Provides precise source grounding, interactive visualizations, and optimized caching for performance.",
 )
 
 
@@ -544,7 +544,7 @@ def get_server_info() -> Dict[str, Any]:
             "Text extraction with source grounding",
             "URL-based content extraction", 
             "Interactive HTML visualizations",
-            "Multiple LLM provider support",
+            "Google Gemini model support with schema constraints",
             "Parallel processing for long documents",
             "Multiple extraction passes for better recall"
         ],
@@ -562,11 +562,5 @@ def get_server_info() -> Dict[str, Any]:
     }
 
 
-# Claude Code compatible entry point
-def main():
-    """Main entry point for the FastMCP server - Claude Code compatible."""
-    mcp.run()
-
-
 if __name__ == "__main__":
-    main()
+    mcp.run()

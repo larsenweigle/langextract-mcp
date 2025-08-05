@@ -18,10 +18,10 @@ The server includes intelligent caching, persistent connections, and server-side
 
 ### Installation
 
-Install directly into Claude Code using the FastMCP CLI:
+Install directly into Claude Code using the built-in MCP management:
 
 ```bash
-fastmcp install claude-code claude_code_install.py --env LANGEXTRACT_API_KEY=your-gemini-api-key
+claude mcp add langextract-mcp -e LANGEXTRACT_API_KEY=your-gemini-api-key -- uv run --with fastmcp fastmcp run src/langextract_mcp/server.py
 ```
 
 The server will automatically start and integrate with Claude Code. No additional configuration is required.

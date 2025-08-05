@@ -194,7 +194,7 @@ def main():
     print("✅ Persistent connections and intelligent caching")
     print("✅ Claude Code integration optimizations")
     print("\nTo use with Claude Code:")
-    print("1. [Setup] fastmcp install claude-code claude_code_install.py --env LANGEXTRACT_API_KEY=your-key")
+    print("1. [Setup] claude mcp add langextract-mcp -e LANGEXTRACT_API_KEY=your-key -- uv run --with fastmcp fastmcp run src/langextract_mcp/server.py")
     print("2. [Claude Code] Server automatically starts and connects")
     print("3. [Claude Code] Use the tool calls shown above - no API keys needed!")
     print("4. [Performance] Enjoy 3x faster extraction with persistent caching")

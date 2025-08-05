@@ -12,7 +12,7 @@ This MCP server doesn't use separate configuration files. Everything is handled 
 ### Step 2: Install with Claude Code
 ```bash
 # Single command installation - no config files needed!
-fastmcp install claude-code claude_code_install.py --env LANGEXTRACT_API_KEY=your-gemini-api-key
+claude mcp add langextract-mcp -e LANGEXTRACT_API_KEY=your-gemini-api-key -- uv run --with fastmcp fastmcp run src/langextract_mcp/server.py
 ```
 
 That's it! The server will start automatically when Claude Code needs it.
@@ -62,8 +62,8 @@ You should see:
 # Check if registered
 claude mcp list
 
-# Re-install if missing
-fastmcp install claude-code claude_code_install.py --env LANGEXTRACT_API_KEY=your-key
+# Re-add if missing
+claude mcp add langextract-mcp -e LANGEXTRACT_API_KEY=your-key -- uv run --with fastmcp fastmcp run src/langextract_mcp/server.py
 ```
 
 **"API key not set"**
