@@ -86,17 +86,12 @@ Focus on methodology, results, and conclusions
 
 ## Supported Models
 
-**Google Gemini (Recommended)**
-- `gemini-2.5-flash` - Optimal balance of speed, cost, and quality
-- `gemini-2.5-pro` - Best for complex reasoning and analysis tasks
+This server currently supports **Google Gemini models only**, optimized for reliable structured extraction with advanced schema constraints:
 
-**OpenAI Models**
-- `gpt-4o` - Alternative provider with good performance
+- `gemini-2.5-flash` - **Recommended default** - Optimal balance of speed, cost, and quality
+- `gemini-2.5-pro` - Best for complex reasoning and analysis tasks requiring highest accuracy
 
-**Local Models**
-- Ollama integration for private deployments
-
-The server automatically optimizes schema generation and API calls based on the selected model's capabilities.
+The server uses persistent connections, schema caching, and connection pooling for optimal performance with Gemini models. Support for additional providers may be added in future versions.
 
 ## Configuration Reference
 

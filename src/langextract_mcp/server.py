@@ -1,7 +1,7 @@
 """FastMCP server for langextract - optimized for Claude Code integration."""
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 import hashlib
 import json
@@ -60,32 +60,35 @@ class LangExtractClient:
         ], sort_keys=True)
         return hashlib.md5(examples_str.encode()).hexdigest()
     
-    def _get_language_model(self, config: ExtractionConfig, api_key: str) -> Any:
+    def _get_language_model(self, config: ExtractionConfig, api_key: str, schema: Optional[Any] = None, schema_hash: Optional[str] = None) -> Any:
         """Get or create a cached language model instance."""
-        model_key = f"{config.model_id}_{config.temperature}_{config.max_workers}"
+        # Include schema hash in cache key to prevent schema mutation conflicts
+        model_key = f"{config.model_id}_{config.temperature}_{config.max_workers}_{schema_hash or 'no_schema'}"
         
         if model_key not in self._language_models:
-            # Generate schema if using Gemini and we have examples
-            gemini_schema = None
-            if config.model_id.startswith('gemini'):
-                # We'll set the schema later when we have examples
-                pass
+            # Validate that only Gemini models are supported
+            if not config.model_id.startswith('gemini'):
+                raise ValueError(f"Only Gemini models are supported. Got: {config.model_id}")
                 
             language_model = lx.inference.GeminiLanguageModel(
                 model_id=config.model_id,
                 api_key=api_key,
                 temperature=config.temperature,
                 max_workers=config.max_workers,
-                gemini_schema=gemini_schema
+                gemini_schema=schema
             )
             self._language_models[model_key] = language_model
             
         return self._language_models[model_key]
     
-    def _get_schema(self, examples: List[ExtractionExample], model_id: str) -> Any:
-        """Get or create a cached schema for the examples."""
+    def _get_schema(self, examples: List[ExtractionExample], model_id: str) -> Tuple[Any, str]:
+        """Get or create a cached schema for the examples.
+        
+        Returns:
+            Tuple of (schema, examples_hash) for use in caching language models
+        """
         if not model_id.startswith('gemini'):
-            return None
+            return None, ""
             
         examples_hash = self._get_examples_hash(examples)
         schema_key = f"{model_id}_{examples_hash}"
@@ -102,7 +105,7 @@ class LangExtractClient:
             schema = lx.schema.GeminiSchema.from_examples(prompt_template.examples)
             self._schema_cache[schema_key] = schema
             
-        return self._schema_cache[schema_key]
+        return self._schema_cache[schema_key], examples_hash
     
     def _get_resolver(self, format_type: str = "JSON") -> Any:
         """Get or create a cached resolver."""
@@ -150,15 +153,12 @@ class LangExtractClient:
         api_key: str
     ) -> lx.data.AnnotatedDocument:
         """Optimized extraction using cached components."""
-        # Get cached components
-        language_model = self._get_language_model(config, api_key)
-        resolver = self._get_resolver("JSON")
+        # Get or generate schema first
+        schema, examples_hash = self._get_schema(examples, config.model_id)
         
-        # Get or generate schema
-        schema = self._get_schema(examples, config.model_id)
-        if schema and hasattr(language_model, 'gemini_schema'):
-            # Update the language model with the schema
-            language_model.gemini_schema = schema
+        # Get cached components with schema-aware caching
+        language_model = self._get_language_model(config, api_key, schema, examples_hash)
+        resolver = self._get_resolver("JSON")
         
         # Convert examples
         langextract_examples = self._create_langextract_examples(examples)
@@ -271,6 +271,13 @@ def extract_from_text(
         if not text.strip():
             raise ToolError("Input text cannot be empty")
         
+        # Validate that only Gemini models are supported
+        if not config.model_id.startswith('gemini'):
+            raise ToolError(
+                f"Only Google Gemini models are supported. Got: {config.model_id}. "
+                f"Use 'list_supported_models' tool to see available options."
+            )
+        
         # Get API key (server-side only for security)
         api_key = _get_api_key()
         if not api_key:
@@ -330,6 +337,13 @@ def extract_from_url(
         
         if not prompt_description.strip():
             raise ToolError("Prompt description cannot be empty")
+        
+        # Validate that only Gemini models are supported
+        if not config.model_id.startswith('gemini'):
+            raise ToolError(
+                f"Only Google Gemini models are supported. Got: {config.model_id}. "
+                f"Use 'list_supported_models' tool to see available options."
+            )
         
         # Get API key (server-side only for security)
         api_key = _get_api_key()
@@ -461,8 +475,8 @@ def list_supported_models() -> Dict[str, Any]:
     """
     List all supported language models and their characteristics.
     
-    Returns information about available models, their providers, capabilities,
-    and recommended use cases to help choose the best model for your task.
+    This server currently supports Google Gemini models only, optimized for
+    reliable structured extraction with schema constraints.
     
     Returns:
         Dictionary containing model information and recommendations
@@ -474,34 +488,34 @@ def list_supported_models() -> Dict[str, Any]:
                 "description": "Fast, cost-effective model with excellent quality",
                 "supports_schema_constraints": True,
                 "recommended_for": ["General extraction", "Fast processing", "Cost-sensitive applications"],
-                "notes": "Recommended default choice"
+                "notes": "Recommended default choice - optimal balance of speed, cost, and quality"
             },
             "gemini-2.5-pro": {
                 "provider": "Google",
                 "description": "Advanced model for complex reasoning tasks",
                 "supports_schema_constraints": True,
                 "recommended_for": ["Complex extractions", "High accuracy requirements", "Sophisticated reasoning"],
-                "notes": "Best quality but higher cost"
-            },
-            "gpt-4o": {
-                "provider": "OpenAI",
-                "description": "OpenAI's flagship model",
-                "supports_schema_constraints": False,
-                "recommended_for": ["Alternative to Gemini", "OpenAI ecosystem preference"],
-                "notes": "Requires fence_output=True and use_schema_constraints=False"
+                "notes": "Best quality for complex tasks but higher cost"
             }
         },
-        "local_models": {
-            "note": "Local models via Ollama are supported but require separate Ollama installation and setup"
+        "supported_providers": {
+            "google": {
+                "api_key_required": True,
+                "environment_variable": "LANGEXTRACT_API_KEY",
+                "get_api_key": "https://aistudio.google.com/app/apikey"
+            }
         },
         "optimization": {
-            "note": "This MCP server uses persistent connections and caches for optimal performance"
+            "note": "This MCP server uses persistent connections, schema caching, and connection pooling for optimal performance"
         },
         "recommendations": {
             "default": "gemini-2.5-flash",
             "high_quality": "gemini-2.5-pro", 
             "cost_optimized": "gemini-2.5-flash",
             "complex_reasoning": "gemini-2.5-pro"
+        },
+        "limitations": {
+            "note": "Currently supports Google Gemini models only. OpenAI and local model support may be added in future versions."
         }
     }
 
