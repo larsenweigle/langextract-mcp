@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__llm-text-explorer__fetch_docs",
+      "WebFetch(domain:gofastmcp.com)",
+      "mcp__github__get_file_contents",
+      "Bash(mkdir:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "llm-text-explorer"
+  ]
+}

@@ -1,0 +1,90 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "langextract-mcp"
+version = "0.1.0"
+description = "FastMCP server for Google's langextract library - extract structured information from unstructured text using LLMs"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Larsen Weigle" }
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+]
+keywords = ["mcp", "fastmcp", "langextract", "llm", "text-extraction", "nlp", "ai"]
+
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=0.1.0",
+    "langextract>=0.1.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "httpx>=0.25.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.5.0",
+    "pre-commit>=3.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/langextract-mcp"
+Repository = "https://github.com/your-org/langextract-mcp"
+Documentation = "https://github.com/your-org/langextract-mcp/blob/main/README.md"
+Issues = "https://github.com/your-org/langextract-mcp/issues"
+
+[project.scripts]
+langextract-mcp = "langextract_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/langextract_mcp"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/docs",
+    "/examples",
+    "/README.md",
+    "/LICENSE",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+asyncio_mode = "auto"
