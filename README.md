@@ -2,6 +2,10 @@
 
 A FastMCP server that provides Model Context Protocol (MCP) tools for Google's [langextract](https://github.com/google/langextract) library. This server enables AI assistants like Claude Code to extract structured information from unstructured text using Large Language Models through a secure, optimized MCP interface.
 
+<a href="https://glama.ai/mcp/servers/@larsenweigle/langextract-mcp">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@larsenweigle/langextract-mcp/badge" alt="LangExtract Server MCP server" />
+</a>
+
 ## Overview
 
 LangExtract is a Python library that uses LLMs to extract structured information from text documents while maintaining precise source grounding. This MCP server exposes langextract's capabilities through the Model Context Protocol with advanced performance optimizations and enterprise-grade security.
