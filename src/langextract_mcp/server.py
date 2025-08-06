@@ -1,22 +1,21 @@
 """FastMCP server for langextract - optimized for Claude Code integration."""
 
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from pathlib import Path
 import hashlib
 import json
 
 import langextract as lx
 from fastmcp import FastMCP
+from fastmcp.resources import FileResource
 from fastmcp.exceptions import ToolError
 from pydantic import BaseModel, Field
 
 
-# Pydantic models for structured inputs
-class ExtractionExample(BaseModel):
-    """Model for extraction examples."""
-    text: str = Field(..., description="Example text")
-    extractions: List[Dict[str, Any]] = Field(..., description="Expected extractions")
+# Simple dictionary types for easier LLM usage
+# ExtractionItem: {"extraction_class": str, "extraction_text": str, "attributes": dict}
+# ExtractionExample: {"text": str, "extractions": list[ExtractionItem]}
 
 
 class ExtractionConfig(BaseModel):
@@ -32,7 +31,7 @@ class ExtractionConfig(BaseModel):
 mcp = FastMCP(
     name="langextract-mcp",
     instructions="Extract structured information from unstructured text using Google Gemini models. "
-                "Provides precise source grounding, interactive visualizations, and optimized caching for performance.",
+                "Provides precise source grounding, interactive visualizations, and optimized caching for performance."
 )
 
 
@@ -45,22 +44,17 @@ class LangExtractClient:
     """
     
     def __init__(self):
-        self._language_models: Dict[str, Any] = {}
-        self._schema_cache: Dict[str, Any] = {}
-        self._prompt_template_cache: Dict[str, Any] = {}
-        self._resolver_cache: Dict[str, Any] = {}
+        self._language_models: dict[str, Any] = {}
+        self._schema_cache: dict[str, Any] = {}
+        self._prompt_template_cache: dict[str, Any] = {}
+        self._resolver_cache: dict[str, Any] = {}
         
-    def _get_examples_hash(self, examples: List[ExtractionExample]) -> str:
+    def _get_examples_hash(self, examples: list[dict[str, Any]]) -> str:
         """Generate a hash for caching based on examples."""
-        examples_str = json.dumps([
-            {
-                "text": ex.text, 
-                "extractions": ex.extractions
-            } for ex in examples
-        ], sort_keys=True)
+        examples_str = json.dumps(examples, sort_keys=True)
         return hashlib.md5(examples_str.encode()).hexdigest()
     
-    def _get_language_model(self, config: ExtractionConfig, api_key: str, schema: Optional[Any] = None, schema_hash: Optional[str] = None) -> Any:
+    def _get_language_model(self, config: ExtractionConfig, api_key: str, schema: Any | None = None, schema_hash: str | None = None) -> Any:
         """Get or create a cached language model instance."""
         # Include schema hash in cache key to prevent schema mutation conflicts
         model_key = f"{config.model_id}_{config.temperature}_{config.max_workers}_{schema_hash or 'no_schema'}"
@@ -81,7 +75,7 @@ class LangExtractClient:
             
         return self._language_models[model_key]
     
-    def _get_schema(self, examples: List[ExtractionExample], model_id: str) -> Tuple[Any, str]:
+    def _get_schema(self, examples: list[dict[str, Any]], model_id: str) -> tuple[Any, str]:
         """Get or create a cached schema for the examples.
         
         Returns:
@@ -98,7 +92,7 @@ class LangExtractClient:
             langextract_examples = self._create_langextract_examples(examples)
             
             # Create prompt template to generate schema
-            prompt_template = lx.prompting.PromptTemplateStructured()
+            prompt_template = lx.prompting.PromptTemplateStructured(description="Schema generation")
             prompt_template.examples.extend(langextract_examples)
             
             # Generate schema
@@ -120,13 +114,13 @@ class LangExtractClient:
             
         return self._resolver_cache[format_type]
     
-    def _create_langextract_examples(self, examples: List[ExtractionExample]) -> List[lx.data.ExampleData]:
-        """Convert Pydantic examples to langextract ExampleData objects."""
+    def _create_langextract_examples(self, examples: list[dict[str, Any]]) -> list[lx.data.ExampleData]:
+        """Convert dictionary examples to langextract ExampleData objects."""
         langextract_examples = []
         
         for example in examples:
             extractions = []
-            for extraction_data in example.extractions:
+            for extraction_data in example["extractions"]:
                 extractions.append(
                     lx.data.Extraction(
                         extraction_class=extraction_data["extraction_class"],
@@ -137,7 +131,7 @@ class LangExtractClient:
             
             langextract_examples.append(
                 lx.data.ExampleData(
-                    text=example.text,
+                    text=example["text"],
                     extractions=extractions
                 )
             )
@@ -148,7 +142,7 @@ class LangExtractClient:
         self, 
         text_or_url: str,
         prompt_description: str,
-        examples: List[ExtractionExample],
+        examples: list[dict[str, Any]],
         config: ExtractionConfig,
         api_key: str
     ) -> lx.data.AnnotatedDocument:
@@ -199,12 +193,12 @@ class LangExtractClient:
 _langextract_client = LangExtractClient()
 
 
-def _get_api_key() -> Optional[str]:
+def _get_api_key() -> str | None:
     """Get API key from environment (server-side only for security)."""
     return os.environ.get("LANGEXTRACT_API_KEY")
 
 
-def _format_extraction_result(result: lx.data.AnnotatedDocument, config: ExtractionConfig, source_url: Optional[str] = None) -> Dict[str, Any]:
+def _format_extraction_result(result: lx.data.AnnotatedDocument, config: ExtractionConfig, source_url: str | None = None) -> dict[str, Any]:
     """Format langextract result for MCP response."""
     extractions = []
     
@@ -234,14 +228,21 @@ def _format_extraction_result(result: lx.data.AnnotatedDocument, config: Extract
         
     return response
 
+# ============================================================================
+# Tools
+# ============================================================================
 
 @mcp.tool
 def extract_from_text(
     text: str,
     prompt_description: str,
-    examples: List[ExtractionExample],
-    config: ExtractionConfig = ExtractionConfig()
-) -> Dict[str, Any]:
+    examples: list[dict[str, Any]],
+    model_id: str = "gemini-2.5-flash",
+    max_char_buffer: int = 1000,
+    temperature: float = 0.5,
+    extraction_passes: int = 1,
+    max_workers: int = 10
+) -> dict[str, Any]:
     """
     Extract structured information from text using langextract.
     
@@ -253,7 +254,11 @@ def extract_from_text(
         text: The text to extract information from
         prompt_description: Clear instructions for what to extract
         examples: List of example extractions to guide the model
-        config: Configuration parameters for the extraction
+        model_id: LLM model to use (default: "gemini-2.5-flash")
+        max_char_buffer: Max characters per chunk (default: 1000)
+        temperature: Sampling temperature 0.0-1.0 (default: 0.5)
+        extraction_passes: Number of extraction passes for better recall (default: 1)
+        max_workers: Max parallel workers (default: 10)
         
     Returns:
         Dictionary containing extracted entities with source locations and metadata
@@ -272,11 +277,20 @@ def extract_from_text(
             raise ToolError("Input text cannot be empty")
         
         # Validate that only Gemini models are supported
-        if not config.model_id.startswith('gemini'):
+        if not model_id.startswith('gemini'):
             raise ToolError(
-                f"Only Google Gemini models are supported. Got: {config.model_id}. "
+                f"Only Google Gemini models are supported. Got: {model_id}. "
                 f"Use 'list_supported_models' tool to see available options."
             )
+        
+        # Create config object from individual parameters
+        config = ExtractionConfig(
+            model_id=model_id,
+            max_char_buffer=max_char_buffer,
+            temperature=temperature,
+            extraction_passes=extraction_passes,
+            max_workers=max_workers
+        )
         
         # Get API key (server-side only for security)
         api_key = _get_api_key()
@@ -306,9 +320,13 @@ def extract_from_text(
 def extract_from_url(
     url: str,
     prompt_description: str,
-    examples: List[ExtractionExample],
-    config: ExtractionConfig = ExtractionConfig()
-) -> Dict[str, Any]:
+    examples: list[dict[str, Any]],
+    model_id: str = "gemini-2.5-flash",
+    max_char_buffer: int = 1000,
+    temperature: float = 0.5,
+    extraction_passes: int = 1,
+    max_workers: int = 10
+) -> dict[str, Any]:
     """
     Extract structured information from text content at a URL.
     
@@ -320,7 +338,11 @@ def extract_from_url(
         url: URL to download text from (must start with http:// or https://)
         prompt_description: Clear instructions for what to extract
         examples: List of example extractions to guide the model
-        config: Configuration parameters for the extraction
+        model_id: LLM model to use (default: "gemini-2.5-flash")
+        max_char_buffer: Max characters per chunk (default: 1000)
+        temperature: Sampling temperature 0.0-1.0 (default: 0.5)
+        extraction_passes: Number of extraction passes for better recall (default: 1)
+        max_workers: Max parallel workers (default: 10)
         
     Returns:
         Dictionary containing extracted entities with source locations and metadata
@@ -339,11 +361,20 @@ def extract_from_url(
             raise ToolError("Prompt description cannot be empty")
         
         # Validate that only Gemini models are supported
-        if not config.model_id.startswith('gemini'):
+        if not model_id.startswith('gemini'):
             raise ToolError(
-                f"Only Google Gemini models are supported. Got: {config.model_id}. "
+                f"Only Google Gemini models are supported. Got: {model_id}. "
                 f"Use 'list_supported_models' tool to see available options."
             )
+        
+        # Create config object from individual parameters
+        config = ExtractionConfig(
+            model_id=model_id,
+            max_char_buffer=max_char_buffer,
+            temperature=temperature,
+            extraction_passes=extraction_passes,
+            max_workers=max_workers
+        )
         
         # Get API key (server-side only for security)
         api_key = _get_api_key()
@@ -371,10 +402,10 @@ def extract_from_url(
 
 @mcp.tool  
 def save_extraction_results(
-    extraction_results: Dict[str, Any],
+    extraction_results: dict[str, Any],
     output_name: str,
     output_dir: str = "."
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """
     Save extraction results to a JSONL file for later use or visualization.
     
@@ -419,8 +450,8 @@ def save_extraction_results(
 @mcp.tool
 def generate_visualization(
     jsonl_file_path: str,
-    output_html_path: Optional[str] = None
-) -> Dict[str, str]:
+    output_html_path: str | None = None
+) -> dict[str, str]:
     """
     Generate interactive HTML visualization from extraction results.
     
@@ -469,98 +500,46 @@ def generate_visualization(
     except Exception as e:
         raise ToolError(f"Failed to generate visualization: {str(e)}")
 
+# ============================================================================
+# Resources
+# ============================================================================
 
-@mcp.tool
-def list_supported_models() -> Dict[str, Any]:
-    """
-    List all supported language models and their characteristics.
-    
-    This server currently supports Google Gemini models only, optimized for
-    reliable structured extraction with schema constraints.
-    
-    Returns:
-        Dictionary containing model information and recommendations
-    """
-    return {
-        "models": {
-            "gemini-2.5-flash": {
-                "provider": "Google",
-                "description": "Fast, cost-effective model with excellent quality",
-                "supports_schema_constraints": True,
-                "recommended_for": ["General extraction", "Fast processing", "Cost-sensitive applications"],
-                "notes": "Recommended default choice - optimal balance of speed, cost, and quality"
-            },
-            "gemini-2.5-pro": {
-                "provider": "Google",
-                "description": "Advanced model for complex reasoning tasks",
-                "supports_schema_constraints": True,
-                "recommended_for": ["Complex extractions", "High accuracy requirements", "Sophisticated reasoning"],
-                "notes": "Best quality for complex tasks but higher cost"
-            }
-        },
-        "supported_providers": {
-            "google": {
-                "api_key_required": True,
-                "environment_variable": "LANGEXTRACT_API_KEY",
-                "get_api_key": "https://aistudio.google.com/app/apikey"
-            }
-        },
-        "optimization": {
-            "note": "This MCP server uses persistent connections, schema caching, and connection pooling for optimal performance"
-        },
-        "recommendations": {
-            "default": "gemini-2.5-flash",
-            "high_quality": "gemini-2.5-pro", 
-            "cost_optimized": "gemini-2.5-flash",
-            "complex_reasoning": "gemini-2.5-pro"
-        },
-        "limitations": {
-            "note": "Currently supports Google Gemini models only. OpenAI and local model support may be added in future versions."
-        }
-    }
+# Get the directory containing this server.py file
+server_dir = Path(__file__).parent
+
+readme_path = (server_dir / "resources" / "README.md").resolve()
+if readme_path.exists():
+    print(f"Adding README resource: {readme_path}")
+    # Use a file:// URI scheme
+    readme_resource = FileResource(
+        uri=f"file://{readme_path.as_posix()}",
+        path=readme_path, # Path to the actual file
+        name="README File",
+        description="The README for the langextract-mcp server.",
+        mime_type="text/markdown",
+        tags={"documentation"}
+    )
+    mcp.add_resource(readme_resource)
 
 
-@mcp.tool
-def get_server_info() -> Dict[str, Any]:
-    """
-    Get information about the LangExtract MCP server.
-    
-    Returns server version, capabilities, and configuration information.
-    
-    Returns:
-        Dictionary containing server information and capabilities
-    """
-    return {
-        "server_name": "LangExtract MCP Server",
-        "version": "0.1.0",
-        "description": "Extract structured information from unstructured text using Large Language Models",
-        "optimizations": [
-            "Persistent language model connections",
-            "Schema caching for repeated examples",
-            "Connection pooling for better performance",
-            "Template caching for efficiency"
-        ],
-        "capabilities": [
-            "Text extraction with source grounding",
-            "URL-based content extraction", 
-            "Interactive HTML visualizations",
-            "Google Gemini model support with schema constraints",
-            "Parallel processing for long documents",
-            "Multiple extraction passes for better recall"
-        ],
-        "supported_formats": {
-            "input": ["Plain text", "URLs (HTTP/HTTPS)"],
-            "output": ["JSON", "JSONL", "Interactive HTML"]
-        },
-        "claude_code_ready": True,
-        "environment": {
-            "api_key_configured": bool(os.environ.get("LANGEXTRACT_API_KEY")),
-            "python_version": "3.10+",
-            "dependencies": ["langextract", "fastmcp", "pydantic"],
-            "transport": "STDIO (Claude Code compatible)"
-        }
-    }
+supported_models_path = (server_dir / "resources" / "supported-models.md").resolve()
+if supported_models_path.exists():
+    print(f"Adding Supported Models resource: {supported_models_path}")
+    supported_models_resource = FileResource(
+        uri=f"file://{supported_models_path.as_posix()}",
+        path=supported_models_path,
+        name="Supported Models",
+        description="The supported models for the langextract-mcp server.",
+        mime_type="text/markdown",
+        tags={"documentation"}
+    )
+    mcp.add_resource(supported_models_resource)
+
+
+def main():
+    """Main function to run the FastMCP server."""
+    mcp.run()
 
 
 if __name__ == "__main__":
-    mcp.run()
+    main()
