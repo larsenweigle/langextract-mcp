@@ -1,6 +1,6 @@
 # LangExtract MCP Server
 
-A FastMCP server that provides Model Context Protocol (MCP) tools for Google's [langextract](https://github.com/google/langextract) library. This server enables AI assistants like Claude Code to extract structured information from unstructured text using Large Language Models through a secure, optimized MCP interface.
+A FastMCP server for Google's [langextract](https://github.com/google/langextract) library. This server enables AI assistants like Claude Code to extract structured information from unstructured text using Large Language Models through a MCP interface.
 
 <a href="https://glama.ai/mcp/servers/@larsenweigle/langextract-mcp">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@larsenweigle/langextract-mcp/badge" alt="LangExtract Server MCP server" />
@@ -8,9 +8,7 @@ A FastMCP server that provides Model Context Protocol (MCP) tools for Google's [
 
 ## Overview
 
-LangExtract is a Python library that uses LLMs to extract structured information from text documents while maintaining precise source grounding. This MCP server exposes langextract's capabilities through the Model Context Protocol with advanced performance optimizations and enterprise-grade security.
-
-The server includes intelligent caching, persistent connections, and server-side credential management to provide optimal performance in long-running environments like Claude Code while maintaining complete security isolation.
+LangExtract is a Python library that uses LLMs to extract structured information from text documents while maintaining precise source grounding. This MCP server exposes langextract's capabilities through the Model Context Protocol. The server includes intelligent caching, persistent connections, and server-side credential management to provide optimal performance in long-running environments like Claude Code.
 
 ## Quick Setup for Claude Code
 
@@ -32,17 +30,17 @@ The server will automatically start and integrate with Claude Code. No additiona
 
 ### Verification
 
-After installation, verify the integration by asking Claude Code:
+After installation, verify the integration entering in Claude Code:
 
 ```
-Use the get_server_info tool to show the LangExtract server capabilities
+/mcp
 ```
 
-You should see output indicating the server is running with optimization features enabled.
+You should see output indicating the server is running and can enter the server to see its tool contents.
 
 ## Available Tools
 
-The server provides six MCP tools optimized for text extraction workflows:
+The server provides the following tools for text extraction workflows:
 
 **Core Extraction**
 - `extract_from_text` - Extract structured information from provided text
@@ -50,11 +48,11 @@ The server provides six MCP tools optimized for text extraction workflows:
 - `save_extraction_results` - Save results to JSONL format
 - `generate_visualization` - Create interactive HTML visualizations
 
-**Server Information**
-- `list_supported_models` - View available language models and recommendations  
-- `get_server_info` - Check server status and capabilities
+For more information, you can checkout out the resources available to the client under `src/langextract_mcp/resources`
 
 ## Usage Examples
+
+I am currently adding the abilty for MCP clients to pass file paths to unstructured text.
 
 ### Basic Text Extraction
 
